@@ -1,0 +1,6 @@
+{
+  "name": "CyberMirror",
+  "description": "See Your Digital Risk Before an Attacker Does. An interactive cybersecurity awareness and digital-risk simulation platform.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
