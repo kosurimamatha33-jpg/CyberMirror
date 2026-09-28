@@ -3,7 +3,9 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React from 'react';
+import React, { StrictMode } from 'react';
+import { createRoot } from 'react-dom/client';
+import './index.css';
 import { CyberProvider, useCyber } from './context/CyberContext';
 import { Navbar } from './components/Navbar';
 import { LandingPage } from './components/LandingPage';
@@ -63,3 +65,14 @@ export default function App() {
     </CyberProvider>
   );
 }
+
+// Self-mounting bootstrap for HTML entry point
+const rootElement = typeof document !== 'undefined' ? document.getElementById('root') : null;
+if (rootElement && !rootElement.hasChildNodes()) {
+  createRoot(rootElement).render(
+    <StrictMode>
+      <App />
+    </StrictMode>
+  );
+}
+
