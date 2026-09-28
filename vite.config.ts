@@ -1,6 +1,6 @@
 import tailwindcss from '@tailwindcss/vite';
 import react from '@vitejs/plugin-react';
-import path from 'path';
+import { fileURLToPath } from 'node:url';
 import { defineConfig, Plugin } from 'vite';
 
 function mirrorAiApiPlugin(): Plugin {
@@ -86,7 +86,7 @@ export default defineConfig(() => {
     plugins: [react(), tailwindcss(), mirrorAiApiPlugin()],
     resolve: {
       alias: {
-        '@': path.resolve(__dirname, '.'),
+        '@': fileURLToPath(new URL('.', import.meta.url)),
       },
     },
     server: {
