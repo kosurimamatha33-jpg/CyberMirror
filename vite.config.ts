@@ -2,7 +2,6 @@ import tailwindcss from '@tailwindcss/vite';
 import react from '@vitejs/plugin-react';
 import path from 'path';
 import { defineConfig, Plugin } from 'vite';
-import { GoogleGenAI } from '@google/genai';
 
 function mirrorAiApiPlugin(): Plugin {
   return {
@@ -22,7 +21,7 @@ function mirrorAiApiPlugin(): Plugin {
 
         req.on('end', async () => {
           try {
-            const { message, history } = JSON.parse(body || '{}');
+            const { message } = JSON.parse(body || '{}');
             const apiKey = process.env.GEMINI_API_KEY;
 
             if (!apiKey) {
@@ -34,6 +33,7 @@ function mirrorAiApiPlugin(): Plugin {
               return;
             }
 
+            const { GoogleGenAI } = await import('@google/genai');
             const ai = new GoogleGenAI({
               apiKey,
               httpOptions: {
