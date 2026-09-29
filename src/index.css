@@ -12,6 +12,21 @@
   }
 }
 
+/* n8n Chat Widget Theme Variables */
+:root {
+  --chat--color-primary: #06b6d4;
+  --chat--color-primary-shade-50: #0891b2;
+  --chat--color-primary-shade-100: #0e7490;
+  --chat--color-secondary: #3b82f6;
+  --chat--color-dark: #0b1120;
+  --chat--color-light: #f8fafc;
+  --chat--color-white: #ffffff;
+  --chat--color-typing: #06b6d4;
+  --chat--border-radius: 1rem;
+  --chat--window--width: 420px;
+  --chat--window--height: 600px;
+}
+
 /* Custom cyber grid and glowing accents */
 .cyber-grid {
   background-size: 36px 36px;

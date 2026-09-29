@@ -12,10 +12,33 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/@n8n/chat/dist/style.css" rel="stylesheet" />
   </head>
   <body class="bg-[#070b14] text-slate-100 antialiased selection:bg-cyan-500/30 selection:text-cyan-200 min-h-screen">
     <div id="root"></div>
     <script type="module" src="./src/App.tsx"></script>
+    <script type="module">
+      import { createChat } from 'https://cdn.jsdelivr.net/npm/@n8n/chat/dist/chat.bundle.es.js';
+
+      createChat({
+        webhookUrl: 'https://mamathavalli.app.n8n.cloud/webhook/7426d229-bcd0-48da-9fab-6d04b0f23250/chat',
+        mode: 'window',
+        showWelcomeScreen: true,
+        defaultLanguage: 'en',
+        initialMessages: [
+          '👋 Hello! I am your CyberMirror AI Assistant.',
+          'How can I help you understand digital risks, detect phishing, or secure your accounts today?'
+        ],
+        i18n: {
+          en: {
+            title: 'CyberMirror Assistant',
+            subtitle: 'Powered by n8n Workflow',
+            footer: 'Defensive Cyber Intelligence',
+            getStarted: 'Start Conversation',
+            inputPlaceholder: 'Type a cybersecurity question...',
+          },
+        },
+      });
+    </script>
   </body>
 </html>
-
