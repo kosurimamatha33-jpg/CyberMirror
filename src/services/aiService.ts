@@ -1,17 +1,29 @@
 import { MIRROR_AI_KNOWLEDGE } from '../data/cyberData';
 
+export const N8N_CHATBOT_WEBHOOK_URL = 'https://mamathavalli.app.n8n.cloud/webhook/7426d229-bcd0-48da-9fab-6d04b0f23250/chat';
+
 export interface AIResponse {
   reply: string;
-  source: 'gemini' | 'cybermirror-engine';
+  source: 'n8n' | 'gemini' | 'cybermirror-engine';
   suggestedActions?: { label: string; actionId: string }[];
+  isWorkflowInactive?: boolean;
+}
+
+export interface N8nChatResponse {
+  reply: string;
+  source: 'n8n' | 'cybermirror-engine' | 'gemini';
+  isWorkflowInactive?: boolean;
+  hint?: string;
+  raw?: any;
 }
 
 /**
- * Intelligent Cyber Defensive Advisor Engine
- * Fallback knowledge processor + Telugu/Telenglish & safety guardrails
+ * Sends a message directly to the n8n Chatbot Workflow
+ * Passes through /api/n8n-chat proxy to eliminate CORS constraints and guarantee reliability.
  */
-export async function askMirrorAI(userQuery: string): Promise<AIResponse> {
-  const queryLower = userQuery.toLowerCase().trim();
+export async function askN8nChatbot(userQuery: string, sessionId?: string): Promise<N8nChatResponse> {
+  const query = userQuery.trim();
+  const activeSessionId = sessionId || getOrCreateSessionId();
 
   // Guardrail 1: Refuse harmful exploitation or attack instructions
   const attackKeywords = [
@@ -19,7 +31,7 @@ export async function askMirrorAI(userQuery: string): Promise<AIResponse> {
     'exploit payload', 'crack password', 'steal wifi', 'trojan source code',
     'keylogger download', 'hack instagram account', 'bypass pin illegally'
   ];
-  if (attackKeywords.some(keyword => queryLower.includes(keyword))) {
+  if (attackKeywords.some(keyword => query.toLowerCase().includes(keyword))) {
     return {
       reply: `🛡️ **Defensive Policy Notice**\n\n${MIRROR_AI_KNOWLEDGE.guardrailRefusal}\n\n**Educational Context:** In professional cybersecurity, understanding how vulnerabilities function is used strictly for defensive remediation, penetration testing with written authorization, and patch management. If you want to learn how to **protect** systems against these attack types, feel free to ask!`,
       source: 'cybermirror-engine'
@@ -32,10 +44,88 @@ export async function askMirrorAI(userQuery: string): Promise<AIResponse> {
     /otp\s*[:=]\s*\d{4,6}/i,
     /cvv\s*[:=]\s*\d{3,4}/i
   ];
+  if (credentialPatterns.some(pat => pat.test(query))) {
+    return {
+      reply: `⚠️ **Security Alert: Redacted Sensitive Data**\n\n${MIRROR_AI_KNOWLEDGE.secretRefusal}\n\nPlease erase any actual credentials from your message. In real-world incidents, never transmit passwords or one-time codes through chat or unverified support lines.`,
+      source: 'cybermirror-engine'
+    };
+  }
+
+  try {
+    const res = await fetch('/api/n8n-chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ message: query, sessionId: activeSessionId }),
+    });
+
+    if (res.ok) {
+      const data = await res.json();
+      if (data.status === 'success' && data.reply) {
+        return {
+          reply: data.reply,
+          source: 'n8n',
+          raw: data.raw
+        };
+      } else if (data.status === 'n8n_inactive') {
+        const localAnswer = await getLocalDefensiveReply(query);
+        return {
+          reply: `⚡ **n8n Workflow Notice:**\nYour n8n chatbot webhook is reachable, but the workflow is currently not in **Active** mode in your n8n cloud dashboard.\n\n👉 **To activate live n8n AI execution:**\n1. Open your n8n canvas at **mamathavalli.app.n8n.cloud**.\n2. Open your Chatbot workflow.\n3. Flip the toggle switch in the top-right corner to **Active**.\n\n---\n\n🛡️ **CyberMirror Defensive Engine Response in the Meantime:**\n\n${localAnswer.reply}`,
+          source: 'cybermirror-engine',
+          isWorkflowInactive: true,
+          hint: data.hint
+        };
+      }
+    }
+  } catch (err) {
+    console.debug('Failed to call n8n proxy, falling back to local engine:', err);
+  }
+
+  // Fallback to local defensive engine
+  const local = await getLocalDefensiveReply(query);
+  return {
+    reply: local.reply,
+    source: 'cybermirror-engine'
+  };
+}
+
+/**
+ * Intelligent Cyber Defensive Advisor Engine
+ * Queries n8n first if preferred, or Gemini API, with fallback to local engine
+ */
+export async function askMirrorAI(userQuery: string, preferN8n = false): Promise<AIResponse> {
+  const queryLower = userQuery.toLowerCase().trim();
+
+  // Guardrails
+  const attackKeywords = [
+    'how to hack', 'hack someone', 'ddos attack', 'sql injection script',
+    'exploit payload', 'crack password', 'steal wifi', 'trojan source code',
+    'keylogger download', 'hack instagram account', 'bypass pin illegally'
+  ];
+  if (attackKeywords.some(keyword => queryLower.includes(keyword))) {
+    return {
+      reply: `🛡️ **Defensive Policy Notice**\n\n${MIRROR_AI_KNOWLEDGE.guardrailRefusal}\n\n**Educational Context:** In professional cybersecurity, understanding how vulnerabilities function is used strictly for defensive remediation, penetration testing with written authorization, and patch management. If you want to learn how to **protect** systems against these attack types, feel free to ask!`,
+      source: 'cybermirror-engine'
+    };
+  }
+
+  const credentialPatterns = [
+    /password\s*[:=]\s*\S+/i,
+    /otp\s*[:=]\s*\d{4,6}/i,
+    /cvv\s*[:=]\s*\d{3,4}/i
+  ];
   if (credentialPatterns.some(pat => pat.test(userQuery))) {
     return {
       reply: `⚠️ **Security Alert: Redacted Sensitive Data**\n\n${MIRROR_AI_KNOWLEDGE.secretRefusal}\n\nPlease erase any actual credentials from your message. In real-world incidents, never transmit passwords or one-time codes through chat or unverified support lines.`,
       source: 'cybermirror-engine'
+    };
+  }
+
+  if (preferN8n) {
+    const n8nResult = await askN8nChatbot(userQuery);
+    return {
+      reply: n8nResult.reply,
+      source: n8nResult.source,
+      isWorkflowInactive: n8nResult.isWorkflowInactive
     };
   }
 
@@ -57,12 +147,18 @@ export async function askMirrorAI(userQuery: string): Promise<AIResponse> {
       }
     }
   } catch (err) {
-    // Graceful fallback to local engine
     console.debug('Using local CyberMirror knowledge engine:', err);
   }
 
-  // Local Intelligence Engine (Deterministic high-grade defensive replies)
-  
+  return getLocalDefensiveReply(userQuery);
+}
+
+/**
+ * Deterministic local defensive intelligence engine
+ */
+export async function getLocalDefensiveReply(userQuery: string): Promise<AIResponse> {
+  const queryLower = userQuery.toLowerCase().trim();
+
   // Telugu & Telenglish Queries
   if (
     queryLower.includes('ante enti') || 
@@ -79,39 +175,42 @@ export async function askMirrorAI(userQuery: string): Promise<AIResponse> {
         source: 'cybermirror-engine'
       };
     }
-
-    if (queryLower.includes('mfa') || queryLower.includes('2fa')) {
+    if (queryLower.includes('mfa') || queryLower.includes('2fa') || queryLower.includes('otp')) {
       return {
-        reply: `🔐 **MFA (టూ-ఫ్యాక్టర్ అథెంటికేషన్) ఎందుకు ముఖ్యం?**\n\nMFA అనేది మీ అకౌంట్‌కు రెండవ తాళం లాంటిది. ఒకవేళ ఎవరైనా మీ పాస్‌వర్డ్ తెలుసుకున్నా కూడా, మీ ఫోన్‌లోని Authenticator కోడ్ లేదా OTP లేకుండా మీ అకౌంట్ ఓపెన్ చేయలేరు.\n\n🛡️ **సిఫార్సు:**\n- Google Authenticator లేదా Aegis వంటి యాప్‌లను ఉపయోగించడం SMS కంటే చాలా సురక్షితం.`,
+        reply: `🔐 **Two-Factor Authentication (2FA / MFA) ప్రాముఖ్యత:**\n\nMFA అనేది మీ డిజిటల్ అకౌంట్లకు రెండవ తాళం లాంటిది. ఎవరైనా మీ పాస్‌వర్డ్ దొంగిలించినప్పటికీ, మీ మొబైల్‌లోని కోడ్ లేకుండా వారు లాగిన్ కాలేరు.\n\n🛡️ **సిఫార్సు చేయబడిన రక్షణ:**\n- SMS బదులుగా **Google Authenticator** లేదా **Aegis** వంటి Authenticator Apps వాడండి.\n- పాస్‌కీలు (Passkeys) అందుబాటులో ఉంటే వాటిని యాక్టివేట్ చేయండి.`,
         source: 'cybermirror-engine'
       };
     }
-
-    if (queryLower.includes('instagram') || queryLower.includes('account')) {
+    if (queryLower.includes('password') || queryLower.includes('passcode')) {
       return {
-        reply: `🛡️ **మీ ఇన్‌స్టాగ్రామ్ / సోషల్ మీడియా అకౌంట్‌ను ఎలా కాపాడుకోవాలి?**\n\n1. **Two-Factor Authentication (2FA)** ఆన్ చేయండి: Settings > Security > Two-Factor Authentication.\n2. **స్ట్రాంగ్ పాస్‌వర్డ్**: కనీసం 12-16 అక్షరాల ప్రత్యేకమైన పాస్‌వర్డ్ వాడండి.\n3. **స్పామ్ మెసేజ్లు నమ్మకండి**: "మీ ఫోటో కాపీరైట్ ఉల్లంఘించింది" లేదా "మీరు లాటరీ గెలిచారు" అనే DM లింకులు క్లిక్ చేయకండి.\n4. **లాగిన్ యాక్టివిటీ**: మీ ఖాతా ఎక్కడెక్కడ లాగిన్ అయి ఉందో చూసి తెలియని డివైజ్‌లను లాగౌట్ చేయండి.`,
+        reply: `🔑 **సురక్షితమైన పాస్‌వర్డ్ నియమాలు:**\n\n1. ఒకే పాస్‌వర్డ్ ని అన్ని వెబ్‌సైట్లలో వాడవద్దు (No Password Reuse).\n2. 16 కంటే ఎక్కువ అక్షరాలతో కూడిన పాస్‌ఫ్రేజ్ (Passphrase) వాడండి.\n3. **Bitwarden** లేదా **1Password** వంటి పాస్‌వర్డ్ మేనేజర్‌ను ఉపయోగించండి.`,
         source: 'cybermirror-engine'
       };
     }
-
+    if (queryLower.includes('phone') && (queryLower.includes('poyindi') || queryLower.includes('lost'))) {
+      return {
+        reply: `📱 **ఫోన్ పోయినప్పుడు వెంటనే చేయవలసిన పనులు:**\n\n1. వెంటనే మీ టెలికాం ఆపరేటర్‌కు కాల్ చేసి **SIM కార్డ్‌ని బ్లాక్ చేయించండి** (దీనివల్ల దొంగలకు మీ బ్యాంక్ OTPలు రావు).\n2. గూగుల్ **Find My Device** లేదా యాపిల్ **Find My** ద్వారా ఫోన్‌ను రిమోట్ గా లాక్ లేదా డేటాను ఎరేజ్ (Erase) చేయండి.\n3. మీ బ్యాంకింగ్, UPI, మరియు Gmail పాస్‌వర్డ్‌లను వెంటనే మార్చండి.`,
+        source: 'cybermirror-engine'
+      };
+    }
     return {
-      reply: `🛡️ **సైబర్ భద్రతా సలహా (Cyber Security Guidance):**\n\nమీ ఆన్‌లైన్ అకౌంట్స్ మరియు డిజిటల్ డేటా సురక్షితంగా ఉండటానికి:\n- ప్రతి వెబ్‌సైట్‌కు వేర్వేరు పాస్‌వర్డ్స్ వాడండి (Password Manager).\n- 2-Factor Authentication (2FA) తప్పనిసరిగా ఆన్ చేయండి.\n- పబ్లిక్ వైఫై (Public Wi-Fi) వాడేటప్పుడు బ్యాంకింగ్ లావాదేవీలు చేయకండి.\n- అనుమానాస్పద లింకులు క్లిక్ చేయకండి.\n\nమీకు ఇంకా ఏ విషయంలో సహాయం కావాలి? (ఉదాహరణకు: Ransomware, Phishing, Passwords)`,
+      reply: `🛡️ **సైబర్ భద్రతా సలహాదారు (CyberMirror):**\n\nమీరు అడిగిన ప్రశ్న: **"${userQuery}"**\n\nడిజిటల్ ప్రపంచంలో సురక్షితంగా ఉండటానికి ప్రాథమిక సూత్రాలు:\n- బలమైన మరియు వేర్వేరు పాస్‌వర్డ్‌లు వాడండి.\n- అనుమానాస్పద లింకులను క్లిక్ చేయకండి.\n- పబ్లిక్ Wi-Fi వాడేటప్పుడు వ్యక్తిగత వివరాలు లేదా బ్యాంకింగ్ ట్రాన్సాక్షన్స్ చేయకండి.\n\nఏదైనా నిర్దిష్ట అంశంపై సందేహం ఉంటే తప్పకుండా అడగండి!`,
       source: 'cybermirror-engine'
     };
   }
 
-  // Phishing Evaluation Queries
-  if (queryLower.includes('is this phishing') || queryLower.includes('phishing check') || queryLower.includes('suspicious email') || queryLower.includes('fake link')) {
+  // Phishing analysis query
+  if (queryLower.includes('phish') || queryLower.includes('fake email') || queryLower.includes('suspicious message') || queryLower.includes('scam')) {
     return {
-      reply: `🔍 **Phishing & Deceptive Message Evaluation Framework**\n\nTo determine if an email, SMS, or link is phishing, evaluate these 5 core red flags:\n\n1. **Artificial Urgency & Fear:** Does it demand action within 2-24 hours ("Account will be suspended", "Unauthorized charge of $499.00 pending")? Threat actors use anxiety to short-circuit logical analysis.\n2. **Domain Mismatch:** Check the exact sender domain. For example, \`service@apple-billing-resolve-security.com\` is **NOT** \`apple.com\`. Look closely for typosquatting (e.g. \`rn\` instead of \`m\`).\n3. **Generic Salutation:** Real services address you by your account name, not "Dear Customer" or "Valued Client".\n4. **Credential Request:** Legitimate institutions will NEVER send an email link requiring you to re-enter your password or OTP.\n5. **Attachment Danger:** Never open unsolicited \`.zip\`, \`.html\`, \`.iso\`, or double-extension files (\`.pdf.exe\`).\n\n💡 **Defensive Protocol:** If in doubt, do not click the link. Open a clean browser tab and log into the service directly via their official bookmark or application.`,
+      reply: `🔍 **Phishing & Social Engineering Detection Guide**\n\nThreat actors exploit urgency, fear, and curiosity to bypass critical thinking. When evaluating any suspicious notification:\n\n1. **Inspect the Full Sender Domain:** Check the true address, not the display name (e.g. \`service@pay-paI.com\` vs \`paypal.com\`).\n2. **Deceptive Urgency:** Legitimate institutions almost never demand action within "1-2 hours" under penalty of total deletion.\n3. **Unsolicited Attachment Danger:** Never open unexpected \`.html\`, \`.zip\`, \`.exe\`, or macro-enabled documents.\n4. **Independent Channel Verification:** Close the email, open a new browser window, and navigate directly to the vendor's official bookmarked address.`,
       source: 'cybermirror-engine'
     };
   }
 
-  // Ransomware Queries
-  if (queryLower.includes('ransomware') || queryLower.includes('crypto locker') || queryLower.includes('encrypted files')) {
+  // Ransomware queries
+  if (queryLower.includes('ransomware') || queryLower.includes('encrypted') || queryLower.includes('crypto locker')) {
     return {
-      reply: `🔒 **Understanding Ransomware & Incident Response**\n\n**What is Ransomware?**\nRansomware is malicious software that encrypts your files (documents, family photos, business spreadsheets) using asymmetric encryption (AES/RSA) and displays a ransom note demanding cryptocurrency payment for the decryption key.\n\n**How Does It Spread?**\n- Phishing attachments disguised as invoices or receipts\n- Sideloaded pirated software, cracked games, or fake installers\n- Unpatched vulnerabilities in remote desktop services (RDP)\n\n**Immediate Containment Steps:**\n1. **Isolate Instantly:** Unplug ethernet cables and turn off Wi-Fi to stop the malware from propagating to network drives.\n2. **Do Not Pay:** The FBI and Europol advise against paying — over 40% of victims never recover their data, and it funds future attacks.\n3. **Restore from Immutable Backups:** Use offline or cloud versioned backups created prior to the infection.\n4. **Check NoMoreRansom.org:** Europol and security vendors maintain free decryption tools for hundreds of known strains.`,
+      reply: `⚠️ **Ransomware Threat Model & Containment**\n\nRansomware silently deletes shadow copies, encrypts documents with AES-256/RSA, and demands extortion payments.\n\n**Immediate Incident Response Protocol:**\n1. **Isolate Instantly:** Pull Ethernet cables and disable Wi-Fi to stop the malware from encrypting network shares.\n2. **Do Not Pay:** Paying does not guarantee file recovery and marks you as an easy target for follow-up extortion.\n3. **Deploy the 3-2-1 Backup Strategy:** 3 copies of your files, 2 different storage types, 1 isolated offline (air-gapped) copy.\n4. **Report the Incident:** Submit the extortion note to CISA (US) or local cybercrime enforcement.`,
       source: 'cybermirror-engine'
     };
   }
@@ -153,4 +252,14 @@ export async function askMirrorAI(userQuery: string): Promise<AIResponse> {
     reply: `🛡️ **CyberMirror Security Insight**\n\nYou asked about: **"${userQuery}"**\n\n**Key Defensive Principles:**\n- **Zero Trust:** Always verify identity before taking action on unsolicited communications.\n- **Defense in Depth:** Layer your security so that if one control fails (e.g. password leaked), secondary controls (MFA, network isolation) protect your assets.\n- **Attack Surface Minimization:** Delete unused accounts, turn off public social indexing, and minimize data shared online.\n\nFeel free to ask for specific guidance on **phishing analysis**, **ransomware containment**, **password managers**, or test a scenario in the **Attack Simulator**!`,
     source: 'cybermirror-engine'
   };
+}
+
+function getOrCreateSessionId(): string {
+  if (typeof window === 'undefined') return 'session-default';
+  let sid = localStorage.getItem('cybermirror_chat_session_id');
+  if (!sid) {
+    sid = 'cm-session-' + Math.random().toString(36).substring(2, 9) + '-' + Date.now();
+    localStorage.setItem('cybermirror_chat_session_id', sid);
+  }
+  return sid;
 }

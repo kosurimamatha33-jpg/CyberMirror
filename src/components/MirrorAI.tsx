@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useCyber } from '../context/CyberContext';
-import { askMirrorAI } from '../services/aiService';
+import { askMirrorAI, N8N_CHATBOT_WEBHOOK_URL } from '../services/aiService';
 import { ChatMessage, PageView } from '../types/cyber';
 import { 
   Bot, 
@@ -16,16 +16,19 @@ import {
   Copy, 
   Check, 
   HelpCircle,
-  Lock
+  Lock,
+  Workflow,
+  ExternalLink
 } from 'lucide-react';
 
 export const MirrorAI: React.FC = () => {
   const { navigateTo } = useCyber();
+  const [useN8nWorkflow, setUseN8nWorkflow] = useState(true);
   const [messages, setMessages] = useState<ChatMessage[]>([
     {
       id: 'welcome',
       role: 'assistant',
-      content: `Hello! I am **MirrorAI**, your dedicated defensive cybersecurity advisor.\n\nI can help you evaluate suspicious messages, explain cyber threats, understand how attacks unfold, and harden your accounts against unauthorized access.\n\n*Note: I also speak fluent Telugu / Telenglish! (ఉదా: "Phishing ante enti?", "Instagram ela secure cheyyali?")*`,
+      content: `Hello! I am **MirrorAI**, your dedicated defensive cybersecurity advisor.\n\nNow equipped with your **n8n Chatbot Workflow** integration:\n\`${N8N_CHATBOT_WEBHOOK_URL}\`\n\nI can help you evaluate suspicious messages, explain cyber threats, understand how attacks unfold, and harden your accounts against unauthorized access.\n\n*Note: I also speak fluent Telugu / Telenglish! (ఉదా: "Phishing ante enti?", "Instagram ela secure cheyyali?")*`,
       timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
       suggestedPrompts: [
         'Is this phishing?',
@@ -69,7 +72,7 @@ export const MirrorAI: React.FC = () => {
     setIsLoading(true);
 
     try {
-      const result = await askMirrorAI(query);
+      const result = await askMirrorAI(query, useN8nWorkflow);
       const assistantMsg: ChatMessage = {
         id: 'a-' + Date.now(),
         role: 'assistant',
@@ -128,7 +131,20 @@ export const MirrorAI: React.FC = () => {
             </h1>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              onClick={() => setUseN8nWorkflow(!useN8nWorkflow)}
+              className={`px-3 py-1.5 rounded-lg border text-xs font-mono flex items-center gap-1.5 transition-all ${
+                useN8nWorkflow 
+                  ? 'bg-emerald-950/60 border-emerald-500/50 text-emerald-300 shadow-sm shadow-emerald-500/20' 
+                  : 'bg-slate-900 border-slate-700 text-slate-400 hover:text-slate-200'
+              }`}
+              title="Toggle n8n Webhook Chatbot workflow"
+            >
+              <Workflow className="w-3.5 h-3.5 text-emerald-400" />
+              <span>n8n Workflow: {useN8nWorkflow ? 'Connected (Active)' : 'Local Engine'}</span>
+            </button>
+
             <button
               onClick={() => setPhishingModalOpen(true)}
               className="px-3 py-1.5 rounded-lg bg-cyan-500/15 border border-cyan-500/40 text-cyan-300 hover:bg-cyan-500/25 text-xs font-mono flex items-center gap-1.5 transition-colors"
@@ -145,6 +161,20 @@ export const MirrorAI: React.FC = () => {
               <RotateCcw className="w-4 h-4" />
             </button>
           </div>
+        </div>
+
+        {/* n8n Webhook Notice Banner */}
+        <div className="p-3 rounded-xl bg-gradient-to-r from-slate-900 via-cyan-950/30 to-slate-900 border border-cyan-500/30 text-xs text-slate-300 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+          <div className="flex items-center gap-2">
+            <Workflow className="w-4 h-4 text-emerald-400 shrink-0" />
+            <span>
+              <strong>n8n Webhook:</strong> <code className="text-cyan-300 font-mono text-[11px] bg-slate-950 px-1.5 py-0.5 rounded border border-slate-800 break-all">{N8N_CHATBOT_WEBHOOK_URL}</code>
+            </span>
+          </div>
+          <span className="text-[11px] text-emerald-300 flex items-center gap-1 shrink-0 font-medium">
+            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+            Live Cloud Webhook
+          </span>
         </div>
 
         {/* Safety Disclaimer Banner */}

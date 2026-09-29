@@ -18,6 +18,7 @@ import { SecurityQuiz } from './components/SecurityQuiz';
 import { MirrorAI } from './components/MirrorAI';
 import { Dashboard } from './components/Dashboard';
 import { Footer } from './components/Footer';
+import { N8nChatWidget } from './components/N8nChatWidget';
 
 const AppContent: React.FC = () => {
   const { currentView } = useCyber();
@@ -54,6 +55,8 @@ const AppContent: React.FC = () => {
         {renderCurrentView()}
       </main>
       <Footer />
+      {/* Floating n8n AI Chatbot Widget */}
+      <N8nChatWidget />
     </div>
   );
 };
